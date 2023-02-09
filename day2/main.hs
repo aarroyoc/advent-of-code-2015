@@ -10,10 +10,10 @@ main = do
 
 
 partOne :: [String] -> Int
-partOne fileLines = sum $ map squareFeet fileLines
+partOne fileLines = sum $ map squareFeet $ map parse fileLines
 
 partTwo :: [String] -> Int
-partTwo fileLines = sum $ map ribbon fileLines
+partTwo fileLines = sum $ map ribbon $ map parse fileLines
 
 wordsWhen     :: (Char -> Bool) -> String -> [String]
 wordsWhen p s =  case dropWhile p s of
@@ -21,15 +21,20 @@ wordsWhen p s =  case dropWhile p s of
                       s' -> w : wordsWhen p s''
                             where (w, s'') = break p s'
 
-squareFeet :: String -> Int
-squareFeet str =
+data Dimension = MkDimension Int Int Int
+
+parse :: String -> Dimension
+parse str =
   let
     dimensionStr = wordsWhen (=='x') str
     dimensionLength = read (dimensionStr !! 0) :: Int
     dimensionWidth = read (dimensionStr !! 1) :: Int
     dimensionHeight = read (dimensionStr !! 2) :: Int
   in
-    2*dimensionLength*dimensionWidth + 2*dimensionWidth*dimensionHeight + 2*dimensionHeight*dimensionLength + smallestSide dimensionLength dimensionWidth dimensionHeight
+    MkDimension dimensionLength dimensionWidth dimensionHeight
+
+squareFeet :: Dimension -> Int
+squareFeet (MkDimension l w h) = 2*l*w + 2*w*h + 2*h*l + smallestSide l w h
 
 smallestSide :: Int -> Int -> Int -> Int
 smallestSide l w h = min side1 (min side2 side3)
@@ -41,15 +46,8 @@ smallestSide l w h = min side1 (min side2 side3)
 volume :: Int -> Int -> Int -> Int
 volume l w h = l*w*h
 
-ribbon :: String -> Int
-ribbon str =
-  let
-    dimensionStr = wordsWhen (=='x') str
-    dimensionLength = read (dimensionStr !! 0) :: Int
-    dimensionWidth = read (dimensionStr !! 1) :: Int
-    dimensionHeight = read (dimensionStr !! 2) :: Int
-  in
-    smallerRibbon dimensionLength dimensionWidth dimensionHeight + volume dimensionLength dimensionWidth dimensionHeight
+ribbon :: Dimension -> Int
+ribbon (MkDimension l w h) = smallerRibbon l w h + volume l w h
 
 smallerRibbon :: Int -> Int -> Int -> Int
 smallerRibbon l w h = min path1 (min path2 path3)
