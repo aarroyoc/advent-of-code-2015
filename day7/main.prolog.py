@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import ClassVar
 import re
-from z3 import *
 
 @dataclass
 class AndRule:
@@ -10,15 +9,12 @@ class AndRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"(\w+) AND (\w+) -> (\w+)")
 
-    def export_z3(self, solver):
+    def export_prolog(self, f):
         try:
             left = int(self.left)
+            f.write(f"wire({self.output}, X) :- {left} = A, wire({self.right}, B), X is A /\\ B.\n")
         except:
-            left = BitVec(self.left, 16)
-        
-        right = BitVec(self.right, 16)
-        output = BitVec(self.output, 16)
-        solver.add(left & right == output)
+            f.write(f"wire({self.output}, X) :- wire({self.left}, A), wire({self.right}, B), X is A /\\ B.\n")
 
 @dataclass
 class OrRule:
@@ -27,11 +23,8 @@ class OrRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"(\w+) OR (\w+) -> (\w+)")
 
-    def export_z3(self, solver):
-        left = BitVec(self.left, 16)
-        right = BitVec(self.right, 16)
-        output = BitVec(self.output, 16)
-        solver.add(left | right == output)
+    def export_prolog(self, f):
+        f.write(f"wire({self.output}, X) :- wire({self.left}, A), wire({self.right}, B), X is A \\/ B.\n")
 
 @dataclass
 class LShiftRule:
@@ -40,10 +33,8 @@ class LShiftRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"(\w+) LSHIFT (\d+) -> (\w+)")
 
-    def export_z3(self, solver):
-        left = BitVec(self.left, 16)
-        output = BitVec(self.output, 16)
-        solver.add(left << self.right == output)
+    def export_prolog(self, f):
+        f.write(f"wire({self.output}, X) :- wire({self.left}, A), X is A << {self.right}.\n")
 
 @dataclass
 class RShiftRule:
@@ -52,10 +43,8 @@ class RShiftRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"(\w+) RSHIFT (\d+) -> (\w+)")
 
-    def export_z3(self, solver):
-        left = BitVec(self.left, 16)
-        output = BitVec(self.output, 16)
-        solver.add(left >> self.right == output)    
+    def export_prolog(self, f):
+        f.write(f"wire({self.output}, X) :- wire({self.left}, A), X is A >> {self.right}.\n")
 
 @dataclass
 class NotRule:
@@ -63,10 +52,8 @@ class NotRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"NOT (\w+) -> (\w+)")
 
-    def export_z3(self, solver):
-        input = BitVec(self.input, 16)
-        output = BitVec(self.output, 16)
-        solver.add(~input == output)    
+    def export_prolog(self, f):
+        f.write(f"wire({self.output}, X) :- wire({self.input}, A), X is \\ A.\n")
 
 @dataclass
 class AliasRule:
@@ -74,31 +61,23 @@ class AliasRule:
     output: str
     regex: ClassVar[re.Pattern[str]] = re.compile(r"(\w+) -> (\w+)")
 
-    def export_z3(self, solver):
+    def export_prolog(self, f):
         try:
             input = int(self.input)
+            f.write(f"wire({self.output}, {input}).\n")
         except:
-            input = BitVec(self.input, 16)
-        
-        output = BitVec(self.output, 16)
-        solver.add(input == output)
+            f.write(f"wire({self.output}, X) :- wire({self.input}, X).\n")
 
 def main():
-    with open("input2") as f:
+    with open("input") as f:
         lines = f.readlines()
 
     rules = map(parse_line, lines)
 
-    solver = Solver()
-    for rule in rules:
-        rule.export_z3(solver)
-
-    if not solver.check():
-        raise Exception("Not solvable")
-
-    model = solver.model()
-    a = BitVec("a", 16)
-    print(f"Value of A: {model[a]}")
+    with open("wires.pl", "w") as f:
+        f.write(":- use_module(library(tabling)).\n:- table wire/2.\n")
+        for rule in rules:
+            rule.export_prolog(f)
 
 def parse_line(line):
     if matches := AndRule.regex.match(line):
